@@ -51,11 +51,12 @@ export const SplitPane: React.FC<SplitPaneProps> = ({ left, right, initialSplit 
 
             {/* Resizer Handle */}
             <div
-                className={`w-1 h-full cursor-col-resize bg-[var(--border-color)] hover:bg-[var(--accent-color)] transition-colors z-10 flex items-center justify-center ${isDragging ? 'bg-[var(--accent-color)]' : ''}`}
+                className={`w-2 h-full cursor-col-resize bg-[var(--border-color)] hover:bg-[var(--accent-color)] transition-colors z-10 flex items-center justify-center ${isDragging ? 'bg-[var(--accent-color)]' : ''}`}
                 onMouseDown={handleMouseDown}
+                style={{ width: '4px' }}
             >
                 {/* Optional: Grip dots or line */}
-                <div className="w-0.5 h-8 bg-white/20 rounded-full" />
+                <div className="w-1 h-8 bg-white/100 rounded-full" />
             </div>
 
             <div style={{ width: `${100 - split}%` }} className="h-full overflow-hidden">
