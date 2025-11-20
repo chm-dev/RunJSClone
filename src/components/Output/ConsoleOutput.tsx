@@ -33,7 +33,7 @@ export const ConsoleOutput: React.FC<ConsoleOutputProps> = ({ logs }) => {
     };
 
     return (
-        <div className="h-full w-full bg-[var(--bg-primary)] overflow-auto p-4 font-mono text-sm">
+        <div className="h-full w-full bg-[var(--bg-primary)] overflow-auto p-4 font-mono text-sm" style={{ fontFamily: 'Consolas, "Courier New", monospace', fontSize: '14px', lineHeight: '19px', marginTop: '16px' }}>
             {logs.length === 0 && (
                 <div className="text-[var(--text-secondary)] opacity-50 italic">
                     Output will appear here...
@@ -55,7 +55,7 @@ export const ConsoleOutput: React.FC<ConsoleOutputProps> = ({ logs }) => {
                     >
                         {log.type === 'return' && <span className="text-green-500 mr-2">➜</span>}
                         {log.args.map((arg, i) => (
-                            <span key={i} className="whitespace-pre-wrap break-words">
+                            <span key={i} className="break-words">
                                 {typeof arg === 'string' ? arg : formatValue(arg)}
                                 {i < log.args.length - 1 ? ' ' : ''}
                             </span>
