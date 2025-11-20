@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import vm from "vm";
-import { Writable } from "stream";
 import { createRequire } from "module";
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
 const require$1 = createRequire(import.meta.url);
@@ -47,29 +46,36 @@ app.on("activate", () => {
 });
 app.whenReady().then(createWindow);
 ipcMain.handle("execute-code", async (event, code) => {
-  const logs = [];
-  new Writable({
-    write(chunk, encoding, callback) {
-      logs.push({ type: "log", content: chunk.toString() });
-      callback();
+  const getLineNumber = () => {
+    const stack = new Error().stack;
+    if (!stack) return void 0;
+    const lines = stack.split("\n");
+    for (const line of lines) {
+      if (line.includes("user-code.js")) {
+        const match = line.match(/user-code\.js:(\d+)/);
+        if (match) {
+          return parseInt(match[1], 10);
+        }
+      }
     }
-  });
+    return void 0;
+  };
   const contextConsole = {
     log: (...args) => {
-      const content = args.map(
-        (arg) => typeof arg === "object" ? JSON.stringify(arg, null, 2) : String(arg)
-      ).join(" ");
-      logs.push({ type: "log", content: [content] });
-      win?.webContents.send("console-output", { method: "log", data: args });
+      const line = getLineNumber();
+      win?.webContents.send("console-output", { method: "log", data: args, line });
     },
     error: (...args) => {
-      win?.webContents.send("console-output", { method: "error", data: args });
+      const line = getLineNumber();
+      win?.webContents.send("console-output", { method: "error", data: args, line });
     },
     warn: (...args) => {
-      win?.webContents.send("console-output", { method: "warn", data: args });
+      const line = getLineNumber();
+      win?.webContents.send("console-output", { method: "warn", data: args, line });
     },
     info: (...args) => {
-      win?.webContents.send("console-output", { method: "info", data: args });
+      const line = getLineNumber();
+      win?.webContents.send("console-output", { method: "info", data: args, line });
     }
   };
   const context = vm.createContext({
@@ -84,11 +90,18 @@ ipcMain.handle("execute-code", async (event, code) => {
     clearInterval
   });
   try {
-    const script = new vm.Script(code);
+    const script = new vm.Script(code, { filename: "user-code.js" });
     const result = await script.runInContext(context);
     return { success: true, result };
   } catch (error) {
-    return { success: false, error: error.message };
+    let line = void 0;
+    if (error.stack) {
+      const match = error.stack.match(/user-code\.js:(\d+)/);
+      if (match) {
+        line = parseInt(match[1], 10);
+      }
+    }
+    return { success: false, error: error.message, line };
   }
 });
 export {

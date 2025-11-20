@@ -66,38 +66,41 @@ app.whenReady().then(createWindow)
 ipcMain.handle('execute-code', async (event, code: string) => {
     const logs: any[] = []
 
-    // Custom stream to capture console output
-    const logStream = new Writable({
-        write(chunk, encoding, callback) {
-            logs.push({ type: 'log', content: chunk.toString() })
-            callback()
+    // Helper to extract line number from stack trace
+    const getLineNumber = () => {
+        const stack = new Error().stack;
+        if (!stack) return undefined;
+
+        // Stack format usually: Error\n at Object.log (user-code.js:2:9)\n ...
+        // We look for 'user-code.js'
+        const lines = stack.split('\n');
+        for (const line of lines) {
+            if (line.includes('user-code.js')) {
+                const match = line.match(/user-code\.js:(\d+)/);
+                if (match) {
+                    return parseInt(match[1], 10);
+                }
+            }
         }
-    })
-
-    // Create a custom console that writes to our stream
-    // We might need to intercept global console methods instead if we want to capture everything
-    // But for vm context, we can pass a custom console
-
-    // Actually, to capture console.log from within the VM, we need to provide a console object in the context.
+        return undefined;
+    };
 
     const contextConsole = {
         log: (...args: any[]) => {
-            const content = args.map(arg =>
-                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-            ).join(' ')
-            logs.push({ type: 'log', content: [content] }) // Match existing format expected by UI if possible, or adapt UI
-            // The UI expects { method: 'log', data: [...] }
-            // Let's match the UI expectation: ConsoleOutput.tsx uses LogEntry { method: 'log' | 'error' | 'warn' | 'info', data: any[] }
-            win?.webContents.send('console-output', { method: 'log', data: args })
+            const line = getLineNumber();
+            win?.webContents.send('console-output', { method: 'log', data: args, line })
         },
         error: (...args: any[]) => {
-            win?.webContents.send('console-output', { method: 'error', data: args })
+            const line = getLineNumber();
+            win?.webContents.send('console-output', { method: 'error', data: args, line })
         },
         warn: (...args: any[]) => {
-            win?.webContents.send('console-output', { method: 'warn', data: args })
+            const line = getLineNumber();
+            win?.webContents.send('console-output', { method: 'warn', data: args, line })
         },
         info: (...args: any[]) => {
-            win?.webContents.send('console-output', { method: 'info', data: args })
+            const line = getLineNumber();
+            win?.webContents.send('console-output', { method: 'info', data: args, line })
         }
     }
 
@@ -112,10 +115,19 @@ ipcMain.handle('execute-code', async (event, code: string) => {
     })
 
     try {
-        const script = new vm.Script(code)
+        // Provide a filename to help with stack trace identification
+        const script = new vm.Script(code, { filename: 'user-code.js' })
         const result = await script.runInContext(context)
         return { success: true, result }
     } catch (error: any) {
-        return { success: false, error: error.message }
+        // Try to extract line number from error stack if possible
+        let line = undefined;
+        if (error.stack) {
+            const match = error.stack.match(/user-code\.js:(\d+)/);
+            if (match) {
+                line = parseInt(match[1], 10);
+            }
+        }
+        return { success: false, error: error.message, line }
     }
 })

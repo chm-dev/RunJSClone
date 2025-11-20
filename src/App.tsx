@@ -52,19 +52,29 @@ example().then((r) => console.log(r));
     setLogs([]); // Clear logs on run
 
     try {
-      const { success, result, error } = await window.electron.executeCode(codeToRun);
+      const { success, result, error, line } = await window.electron.executeCode(codeToRun);
 
       if (!success) {
         setLogs(prev => [...prev, {
           type: 'error',
           args: [error],
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          line: line // Use line from error if available
         }]);
       } else if (result !== undefined) {
+        // Calculate line number for the result (last non-empty line)
+        const lines = codeToRun.split('\n');
+        let lastLineIndex = lines.length - 1;
+        while (lastLineIndex >= 0 && lines[lastLineIndex].trim() === '') {
+          lastLineIndex--;
+        }
+        const resultLine = lastLineIndex + 1;
+
         setLogs(prev => [...prev, {
           type: 'return',
           args: [result],
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          line: resultLine
         }]);
       }
     } catch (err: any) {
@@ -91,7 +101,8 @@ example().then((r) => console.log(r));
       setLogs(prev => [...prev, {
         type: typeMap[data.method] || 'log',
         args: data.data,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        line: data.line
       }]);
     });
 
