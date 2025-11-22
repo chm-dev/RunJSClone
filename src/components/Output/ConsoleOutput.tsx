@@ -38,7 +38,7 @@ export const ConsoleOutput: React.FC<ConsoleOutputProps> = ({ logs }) => {
     }, {} as Record<number, LogEntry[]>);
 
     return (
-        <div className="h-full w-full bg-[var(--bg-primary)] overflow-auto font-mono text-sm relative" style={{ fontFamily: 'Consolas, "Courier New", monospace', fontSize: '14px' }}>
+        <div className="h-full w-full bg-[var(--bg-primary)] overflow-x-hidden overflow-y-auto font-mono text-sm relative" style={{ fontFamily: 'Consolas, "Courier New", monospace', fontSize: '14px' }}>
             {/* We need a container that matches the editor's height/scroll area. 
                  For now, we assume the parent handles scrolling or this container does.
                  If we want exact alignment, we need to ensure the top padding matches the editor's.
