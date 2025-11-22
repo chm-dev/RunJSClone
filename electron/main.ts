@@ -5,7 +5,7 @@ import vm from 'vm'
 import { Console } from 'console'
 import { Writable } from 'stream'
 import { createRequire } from 'module'
-import { exec } from 'child_process'
+import { exec, fork } from 'child_process'
 import fs from 'fs'
 import util from 'util'
 
@@ -76,10 +76,48 @@ app.on('activate', () => {
 
 app.whenReady().then(createWindow)
 
+// Helper to run npm commands using the bundled npm
+const runNpmCommand = (args: string[], cwd: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const npmCliPath = path.join(process.cwd(), 'node_modules', 'npm', 'bin', 'npm-cli.js')
+
+        // In production (asar), we might need to handle paths differently or ensure npm is unpacked.
+        // For now, assuming node_modules is available or unpacked.
+
+        const child = fork(npmCliPath, args, {
+            cwd,
+            stdio: ['ignore', 'pipe', 'pipe', 'ipc']
+        })
+
+        let output = ''
+        let errorOutput = ''
+
+        child.stdout?.on('data', (data: Buffer) => {
+            output += data.toString()
+        })
+
+        child.stderr?.on('data', (data: Buffer) => {
+            errorOutput += data.toString()
+        })
+
+        child.on('close', (code: number) => {
+            if (code === 0) {
+                resolve()
+            } else {
+                reject(new Error(`NPM command failed with code ${code}: ${errorOutput || output}`))
+            }
+        })
+
+        child.on('error', (err: Error) => {
+            reject(err)
+        })
+    })
+}
+
 // IPC Handlers
 ipcMain.handle('install-package', async (_, name: string) => {
     try {
-        await execPromise(`npm install ${name}`, { cwd: PACKAGES_DIR })
+        await runNpmCommand(['install', name], PACKAGES_DIR)
         return { success: true }
     } catch (error: any) {
         return { success: false, error: error.message }
@@ -88,7 +126,7 @@ ipcMain.handle('install-package', async (_, name: string) => {
 
 ipcMain.handle('uninstall-package', async (_, name: string) => {
     try {
-        await execPromise(`npm uninstall ${name}`, { cwd: PACKAGES_DIR })
+        await runNpmCommand(['uninstall', name], PACKAGES_DIR)
         return { success: true }
     } catch (error: any) {
         return { success: false, error: error.message }

@@ -3,10 +3,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 import vm from "vm";
 import { createRequire } from "module";
-import { exec } from "child_process";
+import { exec, fork } from "child_process";
 import fs from "fs";
 import util from "util";
-const execPromise = util.promisify(exec);
+util.promisify(exec);
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGES_DIR = path.join(app.getPath("userData"), "user_packages");
 if (!fs.existsSync(PACKAGES_DIR)) {
@@ -54,9 +54,36 @@ app.on("activate", () => {
   }
 });
 app.whenReady().then(createWindow);
+const runNpmCommand = (args, cwd) => {
+  return new Promise((resolve, reject) => {
+    const npmCliPath = path.join(process.cwd(), "node_modules", "npm", "bin", "npm-cli.js");
+    const child = fork(npmCliPath, args, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe", "ipc"]
+    });
+    let output = "";
+    let errorOutput = "";
+    child.stdout?.on("data", (data) => {
+      output += data.toString();
+    });
+    child.stderr?.on("data", (data) => {
+      errorOutput += data.toString();
+    });
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`NPM command failed with code ${code}: ${errorOutput || output}`));
+      }
+    });
+    child.on("error", (err) => {
+      reject(err);
+    });
+  });
+};
 ipcMain.handle("install-package", async (_, name) => {
   try {
-    await execPromise(`npm install ${name}`, { cwd: PACKAGES_DIR });
+    await runNpmCommand(["install", name], PACKAGES_DIR);
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -64,7 +91,7 @@ ipcMain.handle("install-package", async (_, name) => {
 });
 ipcMain.handle("uninstall-package", async (_, name) => {
   try {
-    await execPromise(`npm uninstall ${name}`, { cwd: PACKAGES_DIR });
+    await runNpmCommand(["uninstall", name], PACKAGES_DIR);
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
