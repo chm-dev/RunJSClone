@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Code2, Play, Trash2 } from 'lucide-react';
+import { Code2, Play, Trash2, Package } from 'lucide-react';
 import { SplitPane } from './components/Layout/SplitPane';
 import { CodeEditor } from './components/Editor/CodeEditor';
 import { ConsoleOutput, type LogEntry, type LogType } from './components/Output/ConsoleOutput';
+import { PackageManager } from './components/Packages/PackageManager';
 
 function App() {
   const [code, setCode] = useState<string>(`// Welcome to Node REPL!
@@ -46,6 +47,7 @@ async function example() {
 example().then((r) => console.log(r));
 `);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [isPackageManagerOpen, setIsPackageManagerOpen] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
   const runCode = useCallback(async (codeToRun: string) => {
@@ -143,6 +145,14 @@ example().then((r) => console.log(r));
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setIsPackageManagerOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded text-sm font-medium transition-colors border border-[var(--border-color)]"
+          >
+            <Package className="w-4 h-4" />
+            Packages
+          </button>
+          <div className="w-px h-6 bg-[var(--border-color)] mx-2" />
+          <button
             onClick={handleClearLogs}
             className="p-2 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             title="Clear Output"
@@ -174,6 +184,11 @@ example().then((r) => console.log(r));
           initialSplit={50}
         />
       </main>
+
+      <PackageManager
+        isOpen={isPackageManagerOpen}
+        onClose={() => setIsPackageManagerOpen(false)}
+      />
     </div>
   );
 }

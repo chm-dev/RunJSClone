@@ -3,8 +3,17 @@ import path from "path";
 import { fileURLToPath } from "url";
 import vm from "vm";
 import { createRequire } from "module";
+import { exec } from "child_process";
+import fs from "fs";
+import util from "util";
+const execPromise = util.promisify(exec);
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
-const require$1 = createRequire(import.meta.url);
+const PACKAGES_DIR = path.join(app.getPath("userData"), "user_packages");
+if (!fs.existsSync(PACKAGES_DIR)) {
+  fs.mkdirSync(PACKAGES_DIR, { recursive: true });
+  fs.writeFileSync(path.join(PACKAGES_DIR, "package.json"), '{"dependencies":{}}');
+}
+const require$1 = createRequire(path.join(PACKAGES_DIR, "index.js"));
 process.env.APP_ROOT = path.join(__dirname$1, "..");
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
@@ -45,6 +54,34 @@ app.on("activate", () => {
   }
 });
 app.whenReady().then(createWindow);
+ipcMain.handle("install-package", async (_, name) => {
+  try {
+    await execPromise(`npm install ${name}`, { cwd: PACKAGES_DIR });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("uninstall-package", async (_, name) => {
+  try {
+    await execPromise(`npm uninstall ${name}`, { cwd: PACKAGES_DIR });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("get-packages", async () => {
+  try {
+    const packageJsonPath = path.join(PACKAGES_DIR, "package.json");
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+      return { success: true, packages: packageJson.dependencies || {} };
+    }
+    return { success: true, packages: {} };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
 ipcMain.handle("execute-code", async (event, code) => {
   const getLineNumber = () => {
     const stack = new Error().stack;

@@ -5,9 +5,23 @@ import vm from 'vm'
 import { Console } from 'console'
 import { Writable } from 'stream'
 import { createRequire } from 'module'
+import { exec } from 'child_process'
+import fs from 'fs'
+import util from 'util'
+
+const execPromise = util.promisify(exec)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const require = createRequire(import.meta.url)
+
+// Setup user packages directory
+const PACKAGES_DIR = path.join(app.getPath('userData'), 'user_packages')
+if (!fs.existsSync(PACKAGES_DIR)) {
+    fs.mkdirSync(PACKAGES_DIR, { recursive: true })
+    fs.writeFileSync(path.join(PACKAGES_DIR, 'package.json'), '{"dependencies":{}}')
+}
+
+// Create require function that resolves from the user packages directory
+const require = createRequire(path.join(PACKAGES_DIR, 'index.js'))
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -63,6 +77,37 @@ app.on('activate', () => {
 app.whenReady().then(createWindow)
 
 // IPC Handlers
+ipcMain.handle('install-package', async (_, name: string) => {
+    try {
+        await execPromise(`npm install ${name}`, { cwd: PACKAGES_DIR })
+        return { success: true }
+    } catch (error: any) {
+        return { success: false, error: error.message }
+    }
+})
+
+ipcMain.handle('uninstall-package', async (_, name: string) => {
+    try {
+        await execPromise(`npm uninstall ${name}`, { cwd: PACKAGES_DIR })
+        return { success: true }
+    } catch (error: any) {
+        return { success: false, error: error.message }
+    }
+})
+
+ipcMain.handle('get-packages', async () => {
+    try {
+        const packageJsonPath = path.join(PACKAGES_DIR, 'package.json')
+        if (fs.existsSync(packageJsonPath)) {
+            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
+            return { success: true, packages: packageJson.dependencies || {} }
+        }
+        return { success: true, packages: {} }
+    } catch (error: any) {
+        return { success: false, error: error.message }
+    }
+})
+
 ipcMain.handle('execute-code', async (event, code: string) => {
     const logs: any[] = []
 
