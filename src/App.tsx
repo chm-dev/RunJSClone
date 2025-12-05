@@ -136,35 +136,32 @@ example().then((r) => console.log(r));
   };
 
   return (
-    <div className="h-full flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div className="h-full flex flex-row gap-4 bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {/* Header */}
-      <header className="h-12 border-b border-[var(--border-color)] flex items-center px-4 justify-between bg-[var(--bg-secondary)] shrink-0">
-        <div className="flex items-center gap-2">
-          <Code2 className="w-6 h-6 text-[var(--accent-color)]" />
-          <span className="font-bold text-lg tracking-tight">RunJS Clone</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsPackageManagerOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded text-sm font-medium transition-colors border border-[var(--border-color)]"
-          >
-            <Package className="w-4 h-4" />
-            Packages
-          </button>
+      <header className="h-full w-40 border-b border-[var(--border-color)] flex flex-row px-4 bg-[var(--bg-secondary)]">
+        <div className="gap-4">
+
           <div className="w-px h-6 bg-[var(--border-color)] mx-2" />
           <button
             onClick={handleClearLogs}
             className="p-2 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             title="Clear Output"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4 " />
           </button>
           <button
             onClick={handleManualRun}
             className="flex items-center gap-2 px-3 py-1.5 bg-[var(--accent-color)] hover:bg-[var(--accent-hover)] text-white rounded text-sm font-medium transition-colors"
           >
             <Play className="w-4 h-4" />
-            Run
+          </button>
+          <hr />
+          <button
+            onClick={() => setIsPackageManagerOpen(true)}
+            className=" px-3 py-1.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded text-sm font-medium transition-colors border border-[var(--border-color)]"
+          >
+            <Package className="w-4 h-4" />
+
           </button>
         </div>
       </header>
