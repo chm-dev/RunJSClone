@@ -39,6 +39,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange }) => {
             allowJs: true,
             typeRoots: ['node_modules/@types']
         });
+
+        // Add types for Node.js globals available in the REPL
+        monaco.languages.typescript.typescriptDefaults.addExtraLib(`
+            declare var require: any;
+            declare var process: any;
+            declare var module: any;
+            declare var __dirname: string;
+            declare var __filename: string;
+        `, 'node-types.d.ts');
     };
 
     return (
@@ -46,6 +55,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange }) => {
             <Editor
                 height="100%"
                 defaultLanguage="typescript"
+                path="index.ts"
                 value={code}
                 onChange={onChange}
                 theme="runjs-dark"

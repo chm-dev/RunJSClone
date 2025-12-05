@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Code2, Play, Trash2, Package } from 'lucide-react';
+import { Play, Trash2, Package } from 'lucide-react';
 import { SplitPane } from './components/Layout/SplitPane';
 import { CodeEditor } from './components/Editor/CodeEditor';
 import { ConsoleOutput, type LogEntry, type LogType } from './components/Output/ConsoleOutput';
@@ -7,43 +7,39 @@ import { PackageManager } from './components/Packages/PackageManager';
 
 function App() {
   const [code, setCode] = useState<string>(`// Welcome to Node REPL!
-// Write your JavaScript code here and press Ctrl+Enter to execute
+// Write your JavaScript or TypeScript code here and press Ctrl+Enter to execute
 
 console.log("Hello, World!");
 
-// Basic JavaScript examples:
-let numbers = [1, 2, 3, 4, 5];
-console.log("Numbers:", numbers);
-console.log(
-  "Sum:",
-  numbers.reduce((a, b) => a + b, 0)
-);
+// TypeScript example:
+interface User {
+  name: string;
+  id: number;
+}
+
+const user: User = {
+  name: "RunJS User",
+  id: 1,
+};
+
+console.log("User:", user);
 
 // Try some Node.js features (when running in Electron):
 try {
   const os = require("os");
-  const path = require("path");
-
   console.log("Platform:", os.platform());
-  console.log("Node version:", process.version);
   console.log("Home directory:", os.homedir());
 } catch (error) {
-  console.log("Node.js modules not available - running in browser mode");
-  console.log("Available mock modules: os, path, crypto");
-
-  // Try the mock modules
-  const os = require("os");
-  console.log("Mock platform:", os.platform());
+  console.log("Node.js modules not available");
 }
 
-// You can use async/await:
+// Async/Await example:
 async function example() {
   return new Promise((resolve) => {
     setTimeout(() => resolve("Async operation completed!"), 1000);
   });
 }
 
-// Execute this:
 example().then((r) => console.log(r));
 `);
   const [logs, setLogs] = useState<LogEntry[]>([]);

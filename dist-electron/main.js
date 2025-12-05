@@ -2,12 +2,14 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import vm from "vm";
+import ts from "typescript";
 import { createRequire } from "module";
 import { exec, fork } from "child_process";
 import fs from "fs";
 import util from "util";
 util.promisify(exec);
-const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
+const __filename$1 = fileURLToPath(import.meta.url);
+const __dirname$1 = path.dirname(__filename$1);
 const PACKAGES_DIR = path.join(app.getPath("userData"), "user_packages");
 if (!fs.existsSync(PACKAGES_DIR)) {
   fs.mkdirSync(PACKAGES_DIR, { recursive: true });
@@ -154,7 +156,14 @@ ipcMain.handle("execute-code", async (event, code) => {
     clearInterval
   });
   try {
-    const script = new vm.Script(code, { filename: "user-code.js" });
+    const transpiled = ts.transpileModule(code, {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ESNext,
+        inlineSourceMap: true
+      }
+    });
+    const script = new vm.Script(transpiled.outputText, { filename: "user-code.js" });
     const result = await script.runInContext(context);
     return { success: true, result };
   } catch (error) {

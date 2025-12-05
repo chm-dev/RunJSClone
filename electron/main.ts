@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import vm from 'vm'
+import ts from 'typescript'
 import { Console } from 'console'
 import { Writable } from 'stream'
 import { createRequire } from 'module'
@@ -11,7 +12,8 @@ import util from 'util'
 
 const execPromise = util.promisify(exec)
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Setup user packages directory
 const PACKAGES_DIR = path.join(app.getPath('userData'), 'user_packages')
@@ -198,8 +200,17 @@ ipcMain.handle('execute-code', async (event, code: string) => {
     })
 
     try {
+        // Transpile TypeScript to JavaScript
+        const transpiled = ts.transpileModule(code, {
+            compilerOptions: {
+                module: ts.ModuleKind.CommonJS,
+                target: ts.ScriptTarget.ESNext,
+                inlineSourceMap: true,
+            }
+        });
+
         // Provide a filename to help with stack trace identification
-        const script = new vm.Script(code, { filename: 'user-code.js' })
+        const script = new vm.Script(transpiled.outputText, { filename: 'user-code.js' })
         const result = await script.runInContext(context)
         return { success: true, result }
     } catch (error: any) {
