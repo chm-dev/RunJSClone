@@ -3,6 +3,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import vm from 'vm'
 import ts from 'typescript'
+import sourceMap from 'source-map-js'
 import { Console } from 'console'
 import { Writable } from 'stream'
 import { createRequire } from 'module'
@@ -11,6 +12,9 @@ import fs from 'fs'
 import util from 'util'
 
 const execPromise = util.promisify(exec)
+
+// Enable remote debugging for renderer process
+app.commandLine.appendSwitch('remote-debugging-port', '9222')
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -152,7 +156,7 @@ ipcMain.handle('execute-code', async (event, code: string) => {
     const logs: any[] = []
 
     // Helper to extract line number from stack trace
-    const getLineNumber = () => {
+    const getLineNumber = (offset = 0) => {
         const stack = new Error().stack;
         if (!stack) return undefined;
 
@@ -163,7 +167,9 @@ ipcMain.handle('execute-code', async (event, code: string) => {
             if (line.includes('user-code.js')) {
                 const match = line.match(/user-code\.js:(\d+)/);
                 if (match) {
-                    return parseInt(match[1], 10);
+                    const lineNo = parseInt(match[1], 10);
+                    // console.log('[DEBUG] Stack line:', lineNo, 'Offset:', offset, 'Result:', lineNo - offset);
+                    return Math.max(1, lineNo - offset);
                 }
             }
         }
@@ -200,14 +206,58 @@ ipcMain.handle('execute-code', async (event, code: string) => {
     })
 
     try {
+
+        const compilerOptions = {
+            module: ts.ModuleKind.CommonJS,
+            target: ts.ScriptTarget.ESNext,
+            sourceMap: true,
+            inlineSourceMap: false,
+        };
+
         // Transpile TypeScript to JavaScript
-        const transpiled = ts.transpileModule(code, {
-            compilerOptions: {
-                module: ts.ModuleKind.CommonJS,
-                target: ts.ScriptTarget.ESNext,
-                inlineSourceMap: true,
+        const transpiled = ts.transpileModule(code, { compilerOptions });
+        
+        // Create SourceMap consumer
+        const consumer = new sourceMap.SourceMapConsumer(JSON.parse(transpiled.sourceMapText || '{}'));
+
+        // Helper to map runtime line to source line
+        const mapLine = (runtimeLine: number) => {
+            // SourceMap lines are 1-based.
+            // Stack trace lines are 1-based.
+            // We verify if we get a valid mapping.
+            const original = consumer.originalPositionFor({ line: runtimeLine, column: 0 });
+            // If mapping fails (e.g. wrapper code), it returns null/lines.
+            if (original.line) {
+                 return original.line;
             }
-        });
+            // Fallback: if we can't map, return the runtime line (better than nothing) 
+            // but for TS which shrinks code, this might be off. 
+            return runtimeLine;
+        };
+
+        // Update contextConsole to use source map
+        context.console = {
+            log: (...args: any[]) => {
+                const runtimeLine = getLineNumber(0); // get raw runtime line (offset 0)
+                const line = runtimeLine ? mapLine(runtimeLine) : undefined;
+                win?.webContents.send('console-output', { method: 'log', data: args, line })
+            },
+            error: (...args: any[]) => {
+                const runtimeLine = getLineNumber(0);
+                const line = runtimeLine ? mapLine(runtimeLine) : undefined;
+                win?.webContents.send('console-output', { method: 'error', data: args, line })
+            },
+            warn: (...args: any[]) => {
+                const runtimeLine = getLineNumber(0);
+                const line = runtimeLine ? mapLine(runtimeLine) : undefined;
+                win?.webContents.send('console-output', { method: 'warn', data: args, line })
+            },
+            info: (...args: any[]) => {
+                const runtimeLine = getLineNumber(0);
+                const line = runtimeLine ? mapLine(runtimeLine) : undefined;
+                win?.webContents.send('console-output', { method: 'info', data: args, line })
+            }
+        };
 
         // Provide a filename to help with stack trace identification
         const script = new vm.Script(transpiled.outputText, { filename: 'user-code.js' })
@@ -219,7 +269,19 @@ ipcMain.handle('execute-code', async (event, code: string) => {
         if (error.stack) {
             const match = error.stack.match(/user-code\.js:(\d+)/);
             if (match) {
-                line = parseInt(match[1], 10);
+                const runtimeLine = parseInt(match[1], 10);
+                // We need the consumer here too if possible, but scope?
+                // Re-creating consumer is okay or scope it out.
+                // For simplicity, re-transpile or move scope up?
+                // Move scope up.
+                try {
+                     const compilerOptions = { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ESNext, sourceMap: true };
+                     const transpiled = ts.transpileModule(code, { compilerOptions });
+                     const consumer = new sourceMap.SourceMapConsumer(JSON.parse(transpiled.sourceMapText || '{}'));
+                     const original = consumer.originalPositionFor({ line: runtimeLine, column: 0 });
+                     if (original.line) line = original.line;
+                     else line = runtimeLine;
+                } catch(e) { line = runtimeLine; }
             }
         }
         return { success: false, error: error.message, line }
