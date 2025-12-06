@@ -4,9 +4,11 @@ import { SplitPane } from './components/Layout/SplitPane';
 import { CodeEditor } from './components/Editor/CodeEditor';
 import { ConsoleOutput, type LogEntry, type LogType } from './components/Output/ConsoleOutput';
 import { PackageManager } from './components/Packages/PackageManager';
+import { ReactPreview } from './components/Preview/ReactPreview';
 
 function App() {
-  const [code, setCode] = useState<string>(`// Welcome to Node REPL!
+  const [mode, setMode] = useState<'repl' | 'react'>('repl');
+  const [replCode, setReplCode] = useState<string>(`// Welcome to Node REPL!
 // Write your JavaScript or TypeScript code here and press Ctrl+Enter to execute
 
 console.log("Hello, World!");
@@ -41,6 +43,26 @@ async function example() {
 }
 
 example().then((r) => console.log(r));
+`);
+  const [reactCode, setReactCode] = useState<string>(`import React, { useState } from 'react';
+
+export default function App() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="p-4 text-white">
+      <h1 className="text-2xl font-bold mb-4">React Mode</h1>
+      <p className="mb-4">Standard React hooks work here!</p>
+      
+      <button 
+        className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-500 transition-colors"
+        onClick={() => setCount(c => c + 1)}
+      >
+        Count: {count}
+      </button>
+    </div>
+  );
+}
 `);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isPackageManagerOpen, setIsPackageManagerOpen] = useState(false);
@@ -109,22 +131,25 @@ example().then((r) => console.log(r));
     };
   }, []);
 
-  // Debounced auto-run
+  // Debounced auto-run (REPL mode only)
   useEffect(() => {
+    if (mode === 'react') return; // Do not auto-run via Electron in React mode (handled by preview comp)
+
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
     timeoutRef.current = window.setTimeout(() => {
-      runCode(code);
+      runCode(replCode);
     }, 1000); // 1s debounce
 
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [code, runCode]);
+  }, [replCode, runCode, mode]);
 
   const handleManualRun = () => {
+    if (mode === 'react') return;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    runCode(code);
+    runCode(replCode);
   };
 
   const handleClearLogs = () => {
@@ -132,26 +157,45 @@ example().then((r) => console.log(r));
   };
 
   return (
-    <div className="h-full flex flex-row gap-4 bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div className="h-full flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {/* Header */}
-      <header className="h-full w-40 border-b border-[var(--border-color)] flex flex-row px-4 bg-[var(--bg-secondary)]">
-        <div className="gap-4">
+      <header className="h-12 border-b border-[var(--border-color)] flex flex-row px-4 bg-[var(--bg-secondary)] items-center justify-between">
+        <div className="flex items-center gap-4">
+             <div className="flex bg-[var(--bg-tertiary)] rounded p-1 gap-1">
+                <button
+                    onClick={() => setMode('repl')}
+                    className={`px-3 py-1 text-xs font-medium rounded transition-colors ${mode === 'repl' ? 'bg-[var(--accent-color)] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                >
+                    REPL
+                </button>
+                <button
+                    onClick={() => setMode('react')}
+                    className={`px-3 py-1 text-xs font-medium rounded transition-colors ${mode === 'react' ? 'bg-[var(--accent-color)] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                >
+                    React
+                </button>
+            </div>
+        </div>
 
-          <div className="w-px h-6 bg-[var(--border-color)] mx-2" />
-          <button
-            onClick={handleClearLogs}
-            className="p-2 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-            title="Clear Output"
-          >
-            <Trash2 className="w-4 h-4 " />
-          </button>
-          <button
-            onClick={handleManualRun}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[var(--accent-color)] hover:bg-[var(--accent-hover)] text-white rounded text-sm font-medium transition-colors"
-          >
-            <Play className="w-4 h-4" />
-          </button>
-          <hr />
+        <div className="flex items-center gap-2">
+            {mode === 'repl' && (
+                <>
+                  <button
+                    onClick={handleClearLogs}
+                    className="p-2 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                    title="Clear Output"
+                  >
+                    <Trash2 className="w-4 h-4 " />
+                  </button>
+                  <button
+                    onClick={handleManualRun}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-[var(--accent-color)] hover:bg-[var(--accent-hover)] text-white rounded text-sm font-medium transition-colors"
+                  >
+                    <Play className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-6 bg-[var(--border-color)] mx-2" />
+                </>
+            )}
           <button
             onClick={() => setIsPackageManagerOpen(true)}
             className=" px-3 py-1.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded text-sm font-medium transition-colors border border-[var(--border-color)]"
@@ -167,12 +211,14 @@ example().then((r) => console.log(r));
         <SplitPane
           left={
             <CodeEditor
-              code={code}
-              onChange={(val) => setCode(val || '')}
+              key={mode} // Force re-mount on mode change to reset undo stack/compiler opts if needed
+              code={mode === 'repl' ? replCode : reactCode}
+              onChange={(val) => mode === 'repl' ? setReplCode(val || '') : setReactCode(val || '')}
+              mode={mode}
             />
           }
           right={
-            <ConsoleOutput logs={logs} />
+            mode === 'repl' ? <ConsoleOutput logs={logs} /> : <ReactPreview code={reactCode} />
           }
           initialSplit={50}
         />
