@@ -3,6 +3,10 @@ export interface IElectronAPI {
     installPackage: (name: string) => Promise<{ success: boolean; error?: string }>;
     uninstallPackage: (name: string) => Promise<{ success: boolean; error?: string }>;
     getPackages: () => Promise<{ success: boolean; packages: Record<string, string>; error?: string }>;
+    installReactPackage: (name: string) => Promise<{ success: boolean; error?: string }>;
+    uninstallReactPackage: (name: string) => Promise<{ success: boolean; error?: string }>;
+    getReactPackages: () => Promise<{ success: boolean; packages: Record<string, string>; error?: string }>;
+    bundleReactPackage: (name: string) => Promise<{ success: boolean; code?: string; error?: string }>;
     onConsoleOutput: (callback: (data: { method: string; data: any[]; line?: number }) => void) => () => void;
 }
 

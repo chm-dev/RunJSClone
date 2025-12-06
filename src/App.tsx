@@ -227,6 +227,7 @@ export default function App() {
       <PackageManager
         isOpen={isPackageManagerOpen}
         onClose={() => setIsPackageManagerOpen(false)}
+        mode={mode}
       />
     </div>
   );

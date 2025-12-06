@@ -10,9 +10,10 @@ interface PackageInfo {
 interface PackageManagerProps {
     isOpen: boolean;
     onClose: () => void;
+    mode: 'repl' | 'react';
 }
 
-export const PackageManager: React.FC<PackageManagerProps> = ({ isOpen, onClose }) => {
+export const PackageManager: React.FC<PackageManagerProps> = ({ isOpen, onClose, mode }) => {
     const [query, setQuery] = useState('');
     const [searchResults, setSearchResults] = useState<PackageInfo[]>([]);
     const [installedPackages, setInstalledPackages] = useState<Record<string, string>>({});
@@ -24,11 +25,14 @@ export const PackageManager: React.FC<PackageManagerProps> = ({ isOpen, onClose 
         if (isOpen) {
             fetchInstalledPackages();
         }
-    }, [isOpen]);
+    }, [isOpen, mode]);
 
     const fetchInstalledPackages = async () => {
         try {
-            const result = await window.electron.getPackages();
+            const result = mode === 'react' 
+                ? await window.electron.getReactPackages() 
+                : await window.electron.getPackages();
+            
             if (result.success) {
                 setInstalledPackages(result.packages);
             } else {
@@ -66,7 +70,10 @@ export const PackageManager: React.FC<PackageManagerProps> = ({ isOpen, onClose 
         setInstalling(name);
         setError(null);
         try {
-            const result = await window.electron.installPackage(name);
+            const result = mode === 'react'
+                ? await window.electron.installReactPackage(name)
+                : await window.electron.installPackage(name);
+
             if (result.success) {
                 await fetchInstalledPackages();
             } else {
@@ -83,7 +90,10 @@ export const PackageManager: React.FC<PackageManagerProps> = ({ isOpen, onClose 
         setInstalling(name); // Reuse installing state for loading indicator
         setError(null);
         try {
-            const result = await window.electron.uninstallPackage(name);
+            const result = mode === 'react'
+                ? await window.electron.uninstallReactPackage(name)
+                : await window.electron.uninstallPackage(name);
+
             if (result.success) {
                 await fetchInstalledPackages();
             } else {

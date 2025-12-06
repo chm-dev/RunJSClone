@@ -12,7 +12,7 @@ export default defineConfig({
         vite: {
           build: {
             rollupOptions: {
-              external: ['typescript'],
+              external: ['typescript', 'esbuild'],
             },
           },
         },

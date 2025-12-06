@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from "electron";
+import { build } from "esbuild";
 import path from "path";
 import { fileURLToPath } from "url";
 import vm from "vm";
@@ -1938,7 +1939,12 @@ if (!fs.existsSync(PACKAGES_DIR)) {
   fs.mkdirSync(PACKAGES_DIR, { recursive: true });
   fs.writeFileSync(path.join(PACKAGES_DIR, "package.json"), '{"dependencies":{}}');
 }
-const require$1 = createRequire(path.join(PACKAGES_DIR, "index.js"));
+const REACT_PACKAGES_DIR = path.join(app.getPath("userData"), "user_react_packages");
+if (!fs.existsSync(REACT_PACKAGES_DIR)) {
+  fs.mkdirSync(REACT_PACKAGES_DIR, { recursive: true });
+  fs.writeFileSync(path.join(REACT_PACKAGES_DIR, "package.json"), '{"dependencies":{}}');
+}
+const userPackageRequire = createRequire(path.join(PACKAGES_DIR, "index.js"));
 process.env.APP_ROOT = path.join(__dirname$1, "..");
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
@@ -2034,6 +2040,59 @@ ipcMain.handle("get-packages", async () => {
     return { success: false, error: error.message };
   }
 });
+ipcMain.handle("install-react-package", async (_, name) => {
+  try {
+    await runNpmCommand(["install", name], REACT_PACKAGES_DIR);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("uninstall-react-package", async (_, name) => {
+  try {
+    await runNpmCommand(["uninstall", name], REACT_PACKAGES_DIR);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("get-react-packages", async () => {
+  try {
+    const packageJsonPath = path.join(REACT_PACKAGES_DIR, "package.json");
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+      return { success: true, packages: packageJson.dependencies || {} };
+    }
+    return { success: true, packages: {} };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("bundle-react-package", async (_, name) => {
+  try {
+    const result = await build({
+      stdin: {
+        contents: `module.exports = require('${name}');`,
+        resolveDir: REACT_PACKAGES_DIR,
+        loader: "js"
+      },
+      bundle: true,
+      format: "cjs",
+      platform: "browser",
+      write: false,
+      banner: {
+        js: 'var __filename = "/index.js"; var __dirname = "/"; var global = window; var process = { env: {} };'
+      },
+      // Exclude React/ReactDOM as they are provided by the runtime
+      external: ["react", "react-dom"]
+    });
+    const code = result.outputFiles[0].text;
+    return { success: true, code };
+  } catch (error) {
+    console.error("Bundle error:", error);
+    return { success: false, error: error.message };
+  }
+});
 ipcMain.handle("execute-code", async (event, code) => {
   const getLineNumber = (offset = 0) => {
     const stack = new Error().stack;
@@ -2070,7 +2129,7 @@ ipcMain.handle("execute-code", async (event, code) => {
   };
   const context = vm.createContext({
     console: contextConsole,
-    require: require$1,
+    require: userPackageRequire,
     // Expose require
     process,
     // Expose process
