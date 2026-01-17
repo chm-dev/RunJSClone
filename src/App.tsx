@@ -1,13 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Play, Trash2, Package } from 'lucide-react';
+import { ConfigProvider, theme } from 'antd';
 import { SplitPane } from './components/Layout/SplitPane';
 import { CodeEditor } from './components/Editor/CodeEditor';
 import { ConsoleOutput, type LogEntry, type LogType } from './components/Output/ConsoleOutput';
-import { PackageManager } from './components/Packages/PackageManager';
 import { ReactPreview } from './components/Preview/ReactPreview';
+import { MainLayout } from './components/Layout/MainLayout';
+import { Explorer } from './components/Sidebar/Explorer';
+import { PackageSidebar } from './components/Sidebar/PackageSidebar';
+import { EditorArea } from './components/Layout/EditorArea';
 
 function App() {
   const [mode, setMode] = useState<'repl' | 'react'>('repl');
+  const [activeActivity, setActiveActivity] = useState<string>('explorer');
+  
   const [replCode, setReplCode] = useState<string>(`// Welcome to Node REPL!
 // Write your JavaScript or TypeScript code here and press Ctrl+Enter to execute
 
@@ -65,7 +70,6 @@ export default function App() {
 }
 `);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [isPackageManagerOpen, setIsPackageManagerOpen] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
   const runCode = useCallback(async (codeToRun: string) => {
@@ -79,10 +83,9 @@ export default function App() {
           type: 'error',
           args: [error],
           timestamp: Date.now(),
-          line: line // Use line from error if available
+          line: line
         }]);
       } else if (result !== undefined) {
-        // Calculate line number for the result (last non-empty line)
         const lines = codeToRun.split('\n');
         let lastLineIndex = lines.length - 1;
         while (lastLineIndex >= 0 && lines[lastLineIndex].trim() === '') {
@@ -109,8 +112,6 @@ export default function App() {
   // Handle console output from Electron
   useEffect(() => {
     const removeListener = window.electron.onConsoleOutput((data) => {
-      // Map 'log' | 'error' | 'warn' | 'info' to LogType
-      // Note: 'method' comes from main.ts
       const typeMap: Record<string, LogType> = {
         log: 'log',
         error: 'error',
@@ -133,13 +134,13 @@ export default function App() {
 
   // Debounced auto-run (REPL mode only)
   useEffect(() => {
-    if (mode === 'react') return; // Do not auto-run via Electron in React mode (handled by preview comp)
+    if (mode === 'react') return;
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
     timeoutRef.current = window.setTimeout(() => {
       runCode(replCode);
-    }, 1000); // 1s debounce
+    }, 1000);
 
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -156,80 +157,77 @@ export default function App() {
     setLogs([]);
   };
 
-  return (
-    <div className="h-full flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      {/* Header */}
-      <header className="h-12 border-b border-[var(--border-color)] flex flex-row px-4 bg-[var(--bg-secondary)] items-center justify-between">
-        <div className="flex items-center gap-4">
-             <div className="flex bg-[var(--bg-tertiary)] rounded p-1 gap-1">
-                <button
-                    onClick={() => setMode('repl')}
-                    className={`px-3 py-1 text-xs font-medium rounded transition-colors ${mode === 'repl' ? 'bg-[var(--accent-color)] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-                >
-                    REPL
-                </button>
-                <button
-                    onClick={() => setMode('react')}
-                    className={`px-3 py-1 text-xs font-medium rounded transition-colors ${mode === 'react' ? 'bg-[var(--accent-color)] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-                >
-                    React
-                </button>
+  const activeSidebarContent = activeActivity === 'explorer' 
+    ? <Explorer activeFile={mode} onFileSelect={setMode} />
+    : activeActivity === 'packages' 
+    ? <PackageSidebar mode={mode} />
+    : <div className="p-4 text-gray-500">Coming soon</div>;
+
+    const statusContent = (
+        <div className="flex justify-between w-full">
+            <div className="flex gap-4">
+                <span className="cursor-pointer hover:bg-[#005ea3] px-1">master*</span>
+            </div>
+            <div className="flex gap-4">
+                <span>{mode === 'repl' ? 'JavaScript' : 'TypeScript React'}</span>
+                <span>UTF-8</span>
             </div>
         </div>
+    );
 
-        <div className="flex items-center gap-2">
-            {mode === 'repl' && (
-                <>
-                  <button
-                    onClick={handleClearLogs}
-                    className="p-2 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-                    title="Clear Output"
-                  >
-                    <Trash2 className="w-4 h-4 " />
-                  </button>
-                  <button
-                    onClick={handleManualRun}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-[var(--accent-color)] hover:bg-[var(--accent-hover)] text-white rounded text-sm font-medium transition-colors"
-                  >
-                    <Play className="w-4 h-4" />
-                  </button>
-                  <div className="w-px h-6 bg-[var(--border-color)] mx-2" />
-                </>
-            )}
-          <button
-            onClick={() => setIsPackageManagerOpen(true)}
-            className=" px-3 py-1.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded text-sm font-medium transition-colors border border-[var(--border-color)]"
-          >
-            <Package className="w-4 h-4" />
-
-          </button>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 flex overflow-hidden relative">
-        <SplitPane
-          left={
-            <CodeEditor
-              key={mode} // Force re-mount on mode change to reset undo stack/compiler opts if needed
-              code={mode === 'repl' ? replCode : reactCode}
-              onChange={(val) => mode === 'repl' ? setReplCode(val || '') : setReactCode(val || '')}
-              mode={mode}
+  return (
+    <ConfigProvider
+      theme={{
+        algorithm: theme.darkAlgorithm,
+        token: {
+          colorPrimary: '#007acc',
+          colorBgBase: '#1e1e1e', // Editor background
+          colorBgContainer: '#252526', // Sidebar background
+          borderRadius: 4,
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        },
+        components: {
+          Layout: {
+            siderBg: '#333333', // Activity Bar
+            bodyBg: '#1e1e1e',
+          },
+          Tabs: {
+            cardBg: '#2d2d2d',
+            itemActiveColor: '#ffffff',
+            inkBarColor: '#007acc',
+          }
+        }
+      }}
+    >
+      <MainLayout
+        activeActivity={activeActivity}
+        onActivityChange={(key) => setActiveActivity(prev => prev === key ? '' : key)}
+        sidebarContent={activeSidebarContent}
+        statusContent={statusContent}
+      >
+        <EditorArea
+            activeMode={mode}
+            onTabChange={(key) => setMode(key as 'repl' | 'react')}
+            onRun={handleManualRun}
+            onClear={handleClearLogs}
+        >
+            <SplitPane
+              left={
+                <CodeEditor
+                    key={mode}
+                    code={mode === 'repl' ? replCode : reactCode}
+                    onChange={(val) => mode === 'repl' ? setReplCode(val || '') : setReactCode(val || '')}
+                    mode={mode}
+                />
+              }
+              right={
+                mode === 'repl' ? <ConsoleOutput logs={logs} /> : <ReactPreview code={reactCode} />
+              }
+              initialSplit={50}
             />
-          }
-          right={
-            mode === 'repl' ? <ConsoleOutput logs={logs} /> : <ReactPreview code={reactCode} />
-          }
-          initialSplit={50}
-        />
-      </main>
-
-      <PackageManager
-        isOpen={isPackageManagerOpen}
-        onClose={() => setIsPackageManagerOpen(false)}
-        mode={mode}
-      />
-    </div>
+        </EditorArea>
+      </MainLayout>
+    </ConfigProvider>
   );
 }
 

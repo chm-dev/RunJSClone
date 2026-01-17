@@ -3,14 +3,16 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #0f0f11;
-  --bg-secondary: #1a1a1e;
-  --bg-tertiary: #252529;
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0a0;
-  --accent-color: #3b82f6;
-  --accent-hover: #2563eb;
-  --border-color: #333336;
+  /* VSCode Dark Theme Colors */
+  --bg-primary: #1e1e1e; /* Editor Area */
+  --bg-secondary: #252526; /* Sidebar */
+  --bg-tertiary: #333333; /* Activity Bar / Inputs */
+  --text-primary: #cccccc; /* Standard text */
+  --text-secondary: #909090; /* Muted text */
+  --accent-color: #007acc; /* VSCode Blue */
+  --accent-hover: #0098ff;
+  --border-color: #454545;
+  
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
@@ -47,11 +49,37 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
+  background: #424242;
   border-radius: 5px;
   border: 2px solid var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #404045;
+  background: #4f4f4f;
+}
+
+/* Antd Overrides to match VSCode perfectly if needed */
+.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab {
+    border: none !important;
+    background: #2d2d2d !important;
+    color: #969696 !important;
+    border-right: 1px solid #252526 !important;
+    border-radius: 0 !important;
+    margin-left: 0 !important;
+}
+
+.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active {
+    background: #1e1e1e !important;
+    color: #ffffff !important;
+}
+
+.ant-tree {
+    background: transparent !important;
+    color: #cccccc !important;
+}
+.ant-tree .ant-tree-node-content-wrapper:hover {
+    background-color: #2a2d2e !important;
+}
+.ant-tree .ant-tree-node-selected {
+    background-color: #37373d !important;
 }
